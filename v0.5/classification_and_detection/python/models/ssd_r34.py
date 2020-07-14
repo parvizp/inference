@@ -421,7 +421,7 @@ class SSD_R34(nn.Module):
         return locs, confs,features_shapes
 
     def forward(self, data):
-        data = self.quant(data)
+        #data = self.quant(data)
 
         layers = self.model(data)
 
@@ -443,18 +443,19 @@ class SSD_R34(nn.Module):
             num_labels:int = 81#self.label_num
             # Location
             output_loc = loc_conv(layer_output)
-            output_loc = self.dequant(output_loc)
+            #output_loc = self.dequant(output_loc)
             reshaped_output_loc = output_loc.reshape(num_batches, 4, -1)
             locs.append(reshaped_output_loc)
             # Confidence
             output_conf = conf_conv(layer_output)
-            output_conf = self.dequant(output_conf)
+            #output_conf = self.dequant(output_conf)
             reshaped_output_conf = output_conf.reshape(num_batches, num_labels, -1)
             confs.append(reshaped_output_conf)
         # Concat all the location tensors, and concat all the confidence tensors:
         locs, confs = torch.cat(locs, 2).contiguous(), torch.cat(confs, 2).contiguous()
  
         results = decode_batch_with_nms_trace(locs, confs, self.encoder.scale_xy, self.encoder.scale_wh, self.encoder.dboxes_xywh)
+        return results
 
     # Fuse Conv+BN and Conv+BN+Relu modules prior to quantization.
     # This does not change the numerics but is required by PyTorch.
