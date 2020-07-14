@@ -5,6 +5,7 @@ import numpy as np
 from math import sqrt, ceil
 import itertools
 import torch.nn.functional as F
+import torchvision
 
 ##Inspired by https://github.com/kuangliu/pytorch-ssd
 
@@ -349,3 +350,17 @@ class SSD_R34(nn.Module):
             # For SSD 300 with strides=[1,1,2,2,2,1] , shall return nbatch x 8732 x {nlabels, nlocs} results 
             results=self.encoder.decode_batch(locs, confs, 0.50, 200) #[0]
             return results #locs, confs,features_shapes
+
+    # Fuse Conv+BN and Conv+BN+Relu modules prior to quantization.
+    # This does not change the numerics but is required by PyTorch.
+    def fuse_model(self):
+        torch.quantization.fuse_modules(self, ['model.layer1.0', 'model.layer1.1', 'model.layer1.2'], inplace=True)
+        for i in range(5):
+            torch.quantization.fuse_modules(self, [['additional_blocks.'+str(i)+'.0', 'additional_blocks.'+str(i)+'.1'], ['additional_blocks.'+str(i)+'.2', 'additional_blocks.'+str(i)+'.3']], inplace=True)
+        # Fuse ops in R34 the backbone.
+        for m in self.modules():
+            if type(m) == torchvision.models.quantization.resnet.QuantizableBottleneck:
+                m.fuse_model()
+            if type(m) == torchvision.models.quantization.resnet.QuantizableBasicBlock:
+                m.fuse_model()
+
