@@ -140,6 +140,13 @@ SUPPORTED_PROFILES = {
         "backend": "pytorch-native",
         "model-name": "ssd-resnet34",
     },
+    "ssd-resnet34-pytorch-calibrate": {
+        "inputs": "image",
+        "outputs": "bboxes,labels,scores",
+        "dataset": "coco-1200-pt",
+        "backend": "pytorch-native-calibrate",
+        "model-name": "ssd-resnet34",
+    },
     "ssd-resnet34-onnxruntime": {
         "dataset": "coco-1200-onnx",
         "inputs": "image",
@@ -239,6 +246,9 @@ def get_backend(backend):
     elif backend == "pytorch-native":
         from backend_pytorch_native import BackendPytorchNative
         backend = BackendPytorchNative()      
+    elif backend == "pytorch-native-calibrate":
+        from backend_pytorch_native_calibrate import BackendPytorchNativeCalibrate
+        backend = BackendPytorchNativeCalibrate()      
     elif backend == "tflite":
         from backend_tflite import BackendTflite
         backend = BackendTflite()
