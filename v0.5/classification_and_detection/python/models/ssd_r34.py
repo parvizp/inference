@@ -13,88 +13,6 @@ from torch.onnx import operators
 
 ##Inspired by https://github.com/kuangliu/pytorch-ssd
 
-@torch.jit.script
-def scale_back_batch(bboxes_in, scores_in, scale_xy, scale_wh, dboxes_xywh):
-    """
-        Do scale and transform from xywh to ltrb
-        suppose input Nx4xnum_bbox Nxlabel_numxnum_bbox
-    """     
-    bboxes_in = bboxes_in.permute(0, 2, 1)
-    scores_in = scores_in.permute(0, 2, 1)
-
-    bboxes_in[:, :, :2] = scale_xy*bboxes_in[:, :, :2]
-    bboxes_in[:, :, 2:] = scale_wh*bboxes_in[:, :, 2:]
-    bboxes_in[:, :, :2] = bboxes_in[:, :, :2]*dboxes_xywh[:, :, 2:] + dboxes_xywh[:, :, :2]
-    bboxes_in[:, :, 2:] = bboxes_in[:, :, 2:].exp()*dboxes_xywh[:, :, 2:]
-    # Transform format to ltrb 
-    l, t, r, b = bboxes_in[:, :, 0] - 0.5*bboxes_in[:, :, 2],\
-                 bboxes_in[:, :, 1] - 0.5*bboxes_in[:, :, 3],\
-                 bboxes_in[:, :, 0] + 0.5*bboxes_in[:, :, 2],\
-                 bboxes_in[:, :, 1] + 0.5*bboxes_in[:, :, 3]
-    bboxes_in[:, :, 0] = l
-    bboxes_in[:, :, 1] = t
-    bboxes_in[:, :, 2] = r
-    bboxes_in[:, :, 3] = b
-    return bboxes_in, F.softmax(scores_in, dim=-1)
-
-@torch.jit.script
-def decode_batch_with_nms_trace(bboxes_in:torch.Tensor, scores_in:torch.Tensor, scale_xy:torch.Tensor, scale_wh:torch.Tensor, dboxes_xywh:torch.Tensor): #, criteria:float, max_output:int, device:int=0):
-    criteria:float = 0.5
-    max_output:int = 200
-    device:int = 0
-
-    bboxes, probs = scale_back_batch(bboxes_in, scores_in, scale_xy, scale_wh, dboxes_xywh)
-
-    #assert bboxes.size(0) == 1, 'batch size must be 1'
-    bboxes = bboxes.squeeze(0)
-    probs = probs.squeeze(0)
-    # for each label
-    bboxes_out = []
-    scores_out = []
-    labels_out = []
-    # bboxes shape  [box num, 4]
-    # probs shape   [box num, label num]
-    for i in range(probs.size(1)):
-        # skip background
-        if i == 0:
-            continue
-
-        scores_per_label = probs[:, i]
-        mask = scores_per_label > 0.05
-        bboxes_masked, scores_masked = bboxes[mask, :], scores_per_label[mask]
-        # print('decode single iter scores masked:', scores_masked, scores_masked.shape)
-
-        num_selected = operators.shape_as_tensor(scores_masked)[0].unsqueeze(0)
-        k = torch.min(
-            torch.cat(
-                (torch.tensor([max_output], dtype=torch.long),
-                 num_selected), 0))
-        _, sorted_idx = scores_masked.topk(k, dim=0)
-        bboxes_masked = bboxes_masked[sorted_idx]
-        scores_masked = scores_masked[sorted_idx]
-
-        out_idx = torch.ops.roi_ops.nms(bboxes_masked.float(), scores_masked, criteria)
-
-        bboxes_out.append(bboxes_masked[out_idx])
-        scores_out.append(scores_masked[out_idx])
-        labels_out.append(torch.full_like(out_idx, i, dtype=torch.long))
-        # print('decode single iter output:', scores_out[-1], labels_out[-1])
-    # return top max_output
-    bboxes_out = torch.cat(bboxes_out, dim=0)
-    labels_out = torch.cat(labels_out, dim=0)
-    scores_out = torch.cat(scores_out, dim=0)
-
-    num_selected = operators.shape_as_tensor(scores_out)[0].unsqueeze(0)
-    k = torch.min(
-        torch.cat(
-            (torch.tensor([max_output], dtype=torch.long), num_selected),
-            0
-        )
-    )
-    _, max_ids = scores_out.topk(k, dim=0)
-
-    return bboxes_out[max_ids, :].unsqueeze(0), labels_out[max_ids].unsqueeze(0), scores_out[max_ids].unsqueeze(0)
-
 
 class Encoder(object):
     """
@@ -234,6 +152,64 @@ def scale_back_batch(bboxes_in, scores_in,scale_xy,scale_wh,dboxes_xywh):
     bboxes_in[:, :, 2] = r
     bboxes_in[:, :, 3] = b
     return bboxes_in, F.softmax(scores_in, dim=-1)
+
+@torch.jit.script
+def decode_batch_with_nms_trace(bboxes_in:torch.Tensor, scores_in:torch.Tensor, scale_xy:torch.Tensor, scale_wh:torch.Tensor, dboxes_xywh:torch.Tensor): #, criteria:float, max_output:int, device:int=0):
+    criteria:float = 0.5
+    max_output:int = 200
+    device:int = 0
+
+    bboxes, probs = scale_back_batch(bboxes_in, scores_in, scale_xy, scale_wh, dboxes_xywh)
+
+    #assert bboxes.size(0) == 1, 'batch size must be 1'
+    bboxes = bboxes.squeeze(0)
+    probs = probs.squeeze(0)
+    # for each label
+    bboxes_out = []
+    scores_out = []
+    labels_out = []
+    # bboxes shape  [box num, 4]
+    # probs shape   [box num, label num]
+    for i in range(probs.size(1)):
+        # skip background
+        if i == 0:
+            continue
+
+        scores_per_label = probs[:, i]
+        mask = scores_per_label > 0.05
+        bboxes_masked, scores_masked = bboxes[mask, :], scores_per_label[mask]
+        # print('decode single iter scores masked:', scores_masked, scores_masked.shape)
+
+        num_selected = operators.shape_as_tensor(scores_masked)[0].unsqueeze(0)
+        k = torch.min(
+            torch.cat(
+                (torch.tensor([max_output], dtype=torch.long),
+                 num_selected), 0))
+        _, sorted_idx = scores_masked.topk(k, dim=0)
+        bboxes_masked = bboxes_masked[sorted_idx]
+        scores_masked = scores_masked[sorted_idx]
+
+        out_idx = torch.ops.roi_ops.nms(bboxes_masked.float(), scores_masked, criteria)
+
+        bboxes_out.append(bboxes_masked[out_idx])
+        scores_out.append(scores_masked[out_idx])
+        labels_out.append(torch.full_like(out_idx, i, dtype=torch.long))
+        # print('decode single iter output:', scores_out[-1], labels_out[-1])
+    # return top max_output
+    bboxes_out = torch.cat(bboxes_out, dim=0)
+    labels_out = torch.cat(labels_out, dim=0)
+    scores_out = torch.cat(scores_out, dim=0)
+
+    num_selected = operators.shape_as_tensor(scores_out)[0].unsqueeze(0)
+    k = torch.min(
+        torch.cat(
+            (torch.tensor([max_output], dtype=torch.long), num_selected),
+            0
+        )
+    )
+    _, max_ids = scores_out.topk(k, dim=0)
+
+    return bboxes_out[max_ids, :].unsqueeze(0), labels_out[max_ids].unsqueeze(0), scores_out[max_ids].unsqueeze(0)
 
 
 class DefaultBoxes(object):
