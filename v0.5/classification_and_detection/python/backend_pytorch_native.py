@@ -13,6 +13,8 @@ class BackendPytorchNative(backend.Backend):
         self.sess = None
         self.model = None
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.sample_count = 0
+
     def version(self):
         return torch.__version__
 
@@ -46,10 +48,19 @@ class BackendPytorchNative(backend.Backend):
 
         # prepare the backend
         self.model = self.model.to(self.device)
+
+        # Trace the model.
+        sample = torch.zeros(1, 3, 1200, 1200) 
+        traced_module = torch.jit.trace(self.model, sample)
+        self.model = traced_module 
+
         return self
 
         
     def predict(self, feed):
+        print('sample_count='+str(self.sample_count))
+        self.sample_count += 1
+
         key=[key for key in feed.keys()][0]    
         feed[key] = torch.tensor(feed[key]).float().to(self.device)
         with torch.no_grad():
