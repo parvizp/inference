@@ -212,42 +212,42 @@ def decode_batch_with_nms_trace(bboxes_in:torch.Tensor, scores_in:torch.Tensor, 
 
     return bboxes_out[max_ids, :].unsqueeze(0), labels_out[max_ids].unsqueeze(0), scores_out[max_ids].unsqueeze(0)
 
-#@torch.jit.script
-#def decode_batch_with_multi_label_nms_trace(bboxes_in:torch.Tensor, scores_in:torch.Tensor, scale_xy:torch.Tensor, scale_wh:torch.Tensor, dboxes_xywh:torch.Tensor): #, criteria = 0.45, max_output=200, device=0):
-#    criteria:float = 0.5
-#    max_output:int = 200
-#    device:int = 0
-#
-#    bboxes, probs = scale_back_batch(bboxes_in, scores_in, scale_xy, scale_wh, dboxes_xywh)
-#
-#    # bboxes shape  [batch, box num, 4]
-#    # probs shape   [batch, box num, label num]
-#    probs = probs.permute(0, 2, 1)
-#    # probs shape   [batch, label num, box num]
-#    
-#    # remove background
-#    probs = probs[:, 1:, :]
-#    selected_indices = torch.ops.roi_ops.multi_label_nms(bboxes, probs, torch.full((1,), max_output, dtype=torch.long), torch.full((1, ), criteria, dtype=torch.float), torch.full((1, ), 0.05, dtype=torch.float))
-#    
-#    labels = selected_indices[:, 1]
-#    box_indices = selected_indices[:, 2]
-#    scores_out = probs.reshape(-1)[labels * operators.shape_as_tensor(probs)[2] + box_indices]
-#    
-#    # return top max_output
-#    num_selected = operators.shape_as_tensor(scores_out)[0].unsqueeze(0)
-#    k = torch.min(
-#        torch.cat(
-#            (torch.tensor([max_output], dtype=torch.long), num_selected),
-#            0
-#        )
-#    )
-#    _, max_ids = scores_out.topk(k, dim=0)
-#    
-#    bboxes = bboxes.squeeze(0)[box_indices.index_select(0, max_ids), :].unsqueeze(0)
-#    labels = labels.index_select(0, max_ids).unsqueeze(0) + 1
-#    scores_out = scores_out.index_select(0, max_ids).unsqueeze(0)
-#    
-#    return bboxes, labels, scores_out
+@torch.jit.script
+def decode_batch_with_multi_label_nms_trace(bboxes_in:torch.Tensor, scores_in:torch.Tensor, scale_xy:torch.Tensor, scale_wh:torch.Tensor, dboxes_xywh:torch.Tensor): #, criteria = 0.45, max_output=200, device=0):
+    criteria:float = 0.5
+    max_output:int = 200
+    device:int = 0
+
+    bboxes, probs = scale_back_batch(bboxes_in, scores_in, scale_xy, scale_wh, dboxes_xywh)
+
+    # bboxes shape  [batch, box num, 4]
+    # probs shape   [batch, box num, label num]
+    probs = probs.permute(0, 2, 1)
+    # probs shape   [batch, label num, box num]
+    
+    # remove background
+    probs = probs[:, 1:, :]
+    selected_indices = torch.ops.roi_ops.multi_label_nms(bboxes, probs, torch.full((1,), max_output, dtype=torch.long), torch.full((1, ), criteria, dtype=torch.float), torch.full((1, ), 0.05, dtype=torch.float))
+    
+    labels = selected_indices[:, 1]
+    box_indices = selected_indices[:, 2]
+    scores_out = probs.reshape(-1)[labels * operators.shape_as_tensor(probs)[2] + box_indices]
+    
+    # return top max_output
+    num_selected = operators.shape_as_tensor(scores_out)[0].unsqueeze(0)
+    k = torch.min(
+        torch.cat(
+            (torch.tensor([max_output], dtype=torch.long), num_selected),
+            0
+        )
+    )
+    _, max_ids = scores_out.topk(k, dim=0)
+    
+    bboxes = bboxes.squeeze(0)[box_indices.index_select(0, max_ids), :].unsqueeze(0)
+    labels = labels.index_select(0, max_ids).unsqueeze(0) + 1
+    scores_out = scores_out.index_select(0, max_ids).unsqueeze(0)
+    
+    return bboxes, labels, scores_out
 
 class DefaultBoxes(object):
     def __init__(self, fig_size, feat_size, steps, scales, aspect_ratios, \
