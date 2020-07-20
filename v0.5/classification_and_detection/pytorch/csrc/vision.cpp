@@ -3,7 +3,8 @@
 
 #include "nms.h"
 
-static auto registry = torch::jit::RegisterOperators()
+//static auto registry = torch::jit::RegisterOperators() // PyTorch <= 1.4?
+static auto registry = torch::RegisterOperators() // PyTorch > 1.4?
   .op("roi_ops::nms", &nms)
   .op("roi_ops::multi_label_nms", &multi_label_nms);
      
