@@ -8,7 +8,8 @@ import torch.nn.functional as F
 import torchvision
 
 # From Microsoft/ONNX MLPerf port: https://github.com/BowenBao/inference/tree/master/cloud/single_stage_detector/pytorch
-torch.ops.load_library('/datasets/mlperf-v0.5/models/custom_ops.cpython-36m-x86_64-linux-gnu.so')
+import os
+torch.ops.load_library(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../pytorch/lib/', 'custom_ops.cpython-36m-x86_64-linux-gnu.so'))
 from torch.onnx import operators
 
 ##Inspired by https://github.com/kuangliu/pytorch-ssd

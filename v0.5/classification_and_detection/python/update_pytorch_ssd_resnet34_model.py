@@ -1,11 +1,9 @@
 import torch
 from models.ssd_r34 import SSD_R34
-# From Microsoft/ONNX MLPerf port: https://github.com/BowenBao/inference/tree/master/cloud/single_stage_detector/pytorch
-torch.ops.load_library('/datasets/mlperf-v0.5/models/custom_ops.cpython-36m-x86_64-linux-gnu.so')
 
 ## Load the MLPerf model.
 # Load the reference model + weights.
-model = torch.load('/datasets/mlperf-v0.5/models/resnet34-ssd1200.pytorch', map_location=lambda storage, loc: storage)
+model = torch.load('resnet34-ssd1200.pytorch', map_location=lambda storage, loc: storage)
 # Save just the MLPerf *weights*.
 torch.save(model.state_dict(), 'resnet34-ssd1200.state_dict.pytorch')
 
