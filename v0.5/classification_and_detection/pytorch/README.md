@@ -1,12 +1,13 @@
 # PyTorch SSD-ResNet34
 
-## From https://github.com/BowenBao/inference/tree/master/cloud/single_stage_detector/pytorch
+## From: https://github.com/BowenBao/inference/tree/master/cloud/single_stage_detector/pytorch
 
 ### Build the project with custom op support
 ```
 cd v0.5/classification_and_detection/pytorch
 python setup.py develop --install-dir=.
 ```
+Which should generate `v0.5/classification_and_detection/pytorch/lib/custom_ops.cpython-*-linux-gnu.so`
 
 If you get the error:
 ```
